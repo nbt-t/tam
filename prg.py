@@ -7,19 +7,17 @@ import json
 FILE_PATH = '/home/nt/file.json'
 
 
-def format_str(s, len_max, time_str=False):
-    if not time_str:
-        return s.ljust(len_max) #+ ' |'
-    #return s.rjust(len_max)
+def format_task_str(s, len_max):
+    return s.ljust(len_max)
 
-def max_hour_str(time_lt):
-    return max(time_lt, key=lambda x: len(x.split(':')[0])).split(':')[0]
-
-def get_task_col_w(task_lt):
-    return len(max(task_lt, key=len))
-
-def get_time_col_w(time_lt):
-    return len(max(time_lt, key=len))
+def draw_layout(main_win, task_time_pairs_n, time_lt, task_col_w, time_col_w,
+                y=0, x=0):
+    for y in range(task_time_pairs_n+1):
+        line_pos = y*2
+        main_win.addstr(line_pos, x, f'{"-"*(task_col_w+1)} '
+                        f'{"-"*(time_col_w+1)}')
+        if y < task_time_pairs_n:
+            main_win.addstr(line_pos+1, task_col_w+1, '|')
 
 def draw_left_layout(main_win, task_time_pairs, task_col_w, y=0, x=0):
     for y in range(task_time_pairs+1): # +1 for last line.
@@ -32,12 +30,11 @@ def draw_right_layout(main_win, task_time_pairs, time_col_w, x, time_lt):
         main_win.addstr(line_pos, x, f'{"-"*(time_col_w+1)}')
         if y < task_time_pairs:
             main_win.addstr(line_pos+1, x-1, '|')
-            #main_win.addstr(line_pos+1, x-1+get_max_len_hour_str(time_lt), '-')
 
 def insert_txt_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
                               task_col_w, time_col_w):
     for i in range(len(task_lt)):
-        task_str = format_str(task_lt[i], task_col_w)
+        task_str = format_task_str(task_lt[i], task_col_w)
         time_str = time_lt[i]
         
         task_pad = task_pad_lt[i]
@@ -61,7 +58,7 @@ def init_task_time_pads(main_win, task_lt, time_lt, task_col_w, time_col_w):
     task_pad_lt = []; time_pad_lt = []
     y = 1
     for i in range(len(task_lt)):
-        task_str = format_str(task_lt[i], task_col_w)
+        task_str = format_task_str(task_lt[i], task_col_w)
         time_str = time_lt[i]
 
         task_pad = curses.newpad(1, len(task_str)) #y, 0)
@@ -268,19 +265,18 @@ def refresh_pad(pad, yx, width):
 def update_scr(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
                task_col_w, time_col_w):
     main_win.erase()
-    draw_left_layout(main_win, len(task_lt), task_col_w)
-    draw_right_layout(main_win, len(task_lt), time_col_w, task_col_w+2, time_lt)
+    draw_layout(main_win, len(task_lt), time_lt, task_col_w, time_col_w)
     main_win.refresh()
     insert_txt_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
                               task_col_w, time_col_w)
     curses.doupdate()
+#    draw_left_layout(main_win, len(task_lt), task_col_w)
+#    draw_right_layout(main_win, len(task_lt), time_col_w, task_col_w+2, time_lt)
 
 def update_task_time_file(task_lt, time_lt, task_time_dt):
     old_task_lt = list(task_time_dt); old_time_lt = list(task_time_dt.values())
     for i in range(len(task_lt)):
         task_time_dt[task_lt[i]] = time_lt[i]
-        if task_lt[i] != old_task_lt[i]:
-    print(json.dumps(task_time_dt))
     return task_time_dt
 
 def main(main_win):
@@ -293,8 +289,8 @@ def main(main_win):
     task_lt = list(task_time_dt)
     time_lt = list(task_time_dt.values())
 
-    task_col_w = get_task_col_w(task_lt)
-    time_col_w = get_time_col_w(time_lt)
+    task_col_w = len(max(task_lt, key=len))
+    time_col_w = len(max(time_lt, key=len))
 
     task_pad_lt, time_pad_lt = init_task_time_pads(main_win, task_lt, time_lt,
                                                    task_col_w, time_col_w)
@@ -327,8 +323,8 @@ def main(main_win):
                                            task_col_w, time_col_w,
                                            row, col)
 
-                task_col_w = get_task_col_w(task_lt)
-                time_col_w = get_time_col_w(time_lt)
+                task_col_w = len(max(task_lt, key=len))
+                time_col_w = len(max(time_lt, key=len))
 
                 update_scr(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
                            task_col_w, time_col_w)
