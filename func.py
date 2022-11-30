@@ -4,37 +4,72 @@ import curses.textpad
 import curses
 import json
 
-FILE_PATH = '/home/nt/file.json'
 
+#   def draw_left_layout(main_win, task_time_pairs, task_col_w, y=0, x=0):
+#       for y in range(task_time_pairs+1): # +1 for last line.
+#           line_pos = y*2
+#           main_win.addstr(line_pos, x, f'{"-"*(task_col_w+1)} ')
 
-def format_task_str(s, len_max):
-    return s.ljust(len_max)
+#   def draw_right_layout(main_win, task_time_pairs, time_col_w, x, time_lt):
+#       for y in range(task_time_pairs+1): # +1 for last line.
+#           line_pos = y*2
+#           main_win.addstr(line_pos, x, f'{"-"*(time_col_w+1)}')
+#           if y < task_time_pairs:
+#               main_win.addstr(line_pos+1, x-1, '|')
+
+"""
+Global Parameters
+-----------------
+* main_win
+    stdscr
+
+* task_lt
+    List of task names.
+
+* time_lt
+    List of time ranges.
+
+* task_pad_lt
+
+* time_pad_lt
+
+* task_col_w
+    Width of the task column.
+
+* time_col_w
+    Width of the time column.
+"""
 
 def draw_layout(main_win, task_time_pairs_n, time_lt, task_col_w, time_col_w,
-                y=0, x=0):
-    for y in range(task_time_pairs_n+1):
-        line_pos = y*2
-        main_win.addstr(line_pos, x, f'{"-"*(task_col_w+1)} '
+                init_y=0, init_x=0):
+    """
+    Draws a task-time table; without the actual values of each cell, just the
+    frame.
+
+    Parameters
+    ----------
+    * task_time_pairs_n
+        Number of task-time pairs.
+
+    * init_y
+        Initial y position in main_win.
+
+    * init_x
+        Initial x position in main_win.
+    """
+    # Each line's y position is going to be a multiple of 2, starting from 0.
+    # Therefore, task_time_pairs_n*2 and a step of 2.
+    for y in range(init_y, task_time_pairs_n*2+1, 2): # +1 cuz last line.
+        main_win.addstr(y, init_x, f'{"-"*(task_col_w+1)} '
                         f'{"-"*(time_col_w+1)}')
-        if y < task_time_pairs_n:
-            main_win.addstr(line_pos+1, task_col_w+1, '|')
+        if y < task_time_pairs_n*2: # only draw '|' while y isn't last line
+            main_win.addstr(y+1, task_col_w+1, '|')
 
-def draw_left_layout(main_win, task_time_pairs, task_col_w, y=0, x=0):
-    for y in range(task_time_pairs+1): # +1 for last line.
-        line_pos = y*2
-        main_win.addstr(line_pos, x, f'{"-"*(task_col_w+1)} ')
-
-def draw_right_layout(main_win, task_time_pairs, time_col_w, x, time_lt):
-    for y in range(task_time_pairs+1): # +1 for last line.
-        line_pos = y*2
-        main_win.addstr(line_pos, x, f'{"-"*(time_col_w+1)}')
-        if y < task_time_pairs:
-            main_win.addstr(line_pos+1, x-1, '|')
-
-def insert_txt_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
+def insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
                               task_col_w, time_col_w):
+    """Inserts corresponding values in task-time pads."""
     for i in range(len(task_lt)):
-        task_str = format_task_str(task_lt[i], task_col_w)
+        task_str = task_lt[i].ljust(task_col_w)
         time_str = time_lt[i]
         
         task_pad = task_pad_lt[i]
@@ -47,36 +82,89 @@ def insert_txt_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
         if len(time_str) > time_pad.getmaxyx()[1]:
             time_pad.resize(1, len(time_str))
         
+        # insstr doesn't move cursor in character insertion vs. addstr, so pad
+        # of same length as value.
         task_pad.insstr(task_str)
         time_pad.insstr(time_str)
-
+            
+        # i*2+1 is one more after layout line.
         task_pad.noutrefresh(0, 0, i*2+1, 0, i*2+1, task_col_w)
-        time_pad.noutrefresh(0, 0, i*2+1, task_col_w+3, i*2+1, task_col_w+3+time_col_w)
+        time_pad.noutrefresh(0, 0, i*2+1, task_col_w+3, i*2+1,
+                             task_col_w+3+time_col_w)
 
 def init_task_time_pads(main_win, task_lt, time_lt, task_col_w, time_col_w):
+    """
+    Create (initialize) task-time pads.
+
+    Returns
+    -------
+    * task_pad_lt
+        List of newly created task pads.
+
+    * time_pad_lt
+        List of newly created time pads.
+    """
     # +1 pattern for strs on windows/wins/pads.
     task_pad_lt = []; time_pad_lt = []
-    y = 1
     for i in range(len(task_lt)):
-        task_str = format_task_str(task_lt[i], task_col_w)
+        task_str = task_lt[i].ljust(task_col_w)
         time_str = time_lt[i]
 
-        task_pad = curses.newpad(1, len(task_str)) #y, 0)
-        time_pad = curses.newpad(1, len(time_str)) #y, len(task_str)+3)
+        task_pad = curses.newpad(1, len(task_str))
+        time_pad = curses.newpad(1, len(time_str))
 
         task_pad_lt.append(task_pad); time_pad_lt.append(time_pad)
-        y += 2
     return task_pad_lt, time_pad_lt
 
-def highlight_pad(win, selected=False):
-    win.bkgd(' ', curses.color_pair(2) if selected else curses.color_pair(1))
+def highlight_pad(pad, selected=False):
+    """
+    Highlights or de-highlights pad according to selected, by default highlight;
+    if selected is true, change color to white on black (de-highlight),
+    otherwise black on white.
 
-def pad_content(task_lt, time_lt, row, col, time_col_w):
+    Parameters
+    ----------
+    * pad
+    
+    * selected
+    """
+    pad.bkgd(' ', curses.color_pair(2) if selected else curses.color_pair(1))
+
+def pad_content(task_lt, time_lt, time_col_w, row, col):
+    """
+    Fetches and returns pad's content. From task_lt if col is 0, and time_lt
+    if otherly.
+
+    Parameters
+    ----------
+    * row   
+        Pad's row (y).
+
+    * col
+        Pad's col (x).
+
+    Returns
+    -------
+    * task_lt[row] OR time_lt[row]
+        Task name of task_lt at row.
+        Time range of time_lt at row.
+    """
     if col == 0:
         return task_lt[row]
     return time_lt[row]
 
 def is_key_valid(key):
+    """
+    Returns True if key is valid.
+
+    Parameters
+    ----------
+    * key.
+
+    Returns
+    -------
+    * Boolean value (True/False).
+    """
     valid_keys_normal = 'kjhl'
     valid_keys_special = [curses.KEY_UP, curses.KEY_DOWN,
                           curses.KEY_LEFT, curses.KEY_RIGHT, 10]
@@ -84,48 +172,59 @@ def is_key_valid(key):
         return True
     return False
 
-def extend_task_pad_width(task_pad, time_pad, task_pad_width, time_pad_width):
-    time_pad_beg_y, time_pad_beg_x = time_pad.getbegyx()
-    time_pad_beg_x += abs(time_pad_beg_x-time_pad_width)
-    time_pad.refresh(0, 0, time_pad_beg_y, time_pad_beg_x, time_pad_beg_y,
-                     time_pad_beg_x+time_pad_width)
-
 def task_usr_inp(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
                  task_col_w, time_col_w, row, col):
+    """
+    Reads and writes user input in the selected task pad.
+
+    Parameters
+    ----------
+    * row
+        Pad's row (y)
+
+    * col
+        Pad's col (x)
+
+    Returns
+    -------
+    * inp
+    """
     inp = key = ''
     y, x = pad.getbegyx()
-    pad_width = task_col_w
-    main_win.move(row*2+1, 0)
+    main_win.move(row*2+1, 0) # move cursor position to selected task pad.
     # cursor in off location, that's the reason for the random chars. write in notebook the pattern?.
     while key != 10:
         if key == curses.KEY_BACKSPACE:
-            if x == 0:
+            if x == 0: #  no more chars to delete.
                 key = main_win.getch()
                 continue
             x -= 1
             main_win.delch(y, x)
             main_win.clrtoeol()
             main_win.refresh()
-            inp = inp[:len(inp)]
-            if x >= pad_width:
+            inp = inp[:len(inp)-1]
+            # x exceeds or equals current task column width. draw '|' after
+            # cursor and draw time pad two spaces after it.
+            if x >= task_col_w:
                 main_win.addstr(y, x+1, '|')
-                main_win.refresh()
                 refresh_pad(time_pad_lt[y//2], (y, x+3), time_col_w)
-                main_win.move(y, x)
+            # x < current task column width. draw '|' two spaces after task
+            # name and draw time pad four spaces after it.
             else:
                 main_win.addstr(y, task_col_w+1, '|')
-                main_win.refresh()
                 refresh_pad(time_pad_lt[y//2], (y, task_col_w+3), time_col_w)
-                main_win.move(y, x)
+            # addstr moves cursor to after added char, '|', so fix position.
+            main_win.move(y, x) 
         elif key:
-            if x > pad_width-1:
-                main_win.delch(y, x)
-                main_win.addstr(y, x+2, '|')
+            if x > task_col_w-1:
+                main_win.delch(y, x) # delete '|'.
+                main_win.addstr(y, x+2, '|') # re-draw it farther.
                 main_win.refresh()
+                # re-draw pad so it is 1 space after '|'.
                 refresh_pad(time_pad_lt[y//2], (y, x+4), time_col_w)
-            main_win.addstr(y, x, chr(key))
-            inp += chr(key)
-            x += 1
+            main_win.addstr(y, x, chr(key)) # add char to pad.
+            inp += chr(key) # add char to inp str.
+            x += 1 # increment cursor position.
         key = main_win.getch()
     return inp
         
@@ -140,8 +239,10 @@ def modify_task_name(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
                        time_lt, task_col_w, time_col_w, row, col)
     curses.noecho()
     curses.curs_set(False)
+
     if not inp or inp.isspace():
         return task_lt
+
     task_lt[row] = inp; return task_lt
 
 def change_time(time_pad, time_lt, time_col_w, start_time, end_time, selected, hour_min, y):
@@ -227,16 +328,15 @@ def highlight_time_pad(time_pad, time_lt, time_col_w, start_time, end_time,
 
     refresh_pad(time_pad, time_pad.getbegyx(), len(start_time)+len(end_time))
 
-
 def modify_time(main_win, time_lt, time_pad, time_col_w,  y):
-    start_end = time_lt[y]
-    start_time, end_time = start_end.split('-')
+    time_range = time_lt[y]
+    start_time, end_time = time_range.split('-')
 
     highlight_time_pad(time_pad, time_lt, time_col_w, start_time, end_time, 1, 1)
     key = None
     col = 1
     time_pad.keypad(True)
-    while key != 10:
+    while True if not key else (chr(key) != 'H'):
         key = time_pad.getch()
         if chr(key) == 'h' or key == curses.KEY_LEFT:
             col -= 1 if col > 1 else -3
@@ -246,15 +346,16 @@ def modify_time(main_win, time_lt, time_pad, time_col_w,  y):
         highlight_time_pad(time_pad, time_lt, time_col_w,
                            start_time, end_time,
                            1 if col < 3 else 2, 1 if col % 2 else 2)
+        if key == 10:
+            time_lt = change_time(time_pad, time_lt, time_col_w, start_time,
+                                  end_time, 1 if col < 3 else 2, 1 if col % 2 else 2, y)
+            time_range = time_lt[y]
+            start_time, end_time = start_end.split('-')
+            highlight_time_pad(time_pad, time_lt, time_col_w, start_time,
+                               end_time, 1 if col < 3 else 2, 1 if col % 2 else 2)
+
+    return time_lt
     
-    if col < 3:
-        hour, minute = start_time.split(':')
-    else:
-        hour, minute = end_time.split(':')
-
-    return change_time(time_pad, time_lt, time_col_w, start_time, end_time, 1 if col < 3 else 2,
-                       1 if col % 2 else 2, y)
-
 def get_selected_pad(task_pad_lt, time_pad_lt, row, col):
     return task_pad_lt[row] if col == 0 else time_pad_lt[row]
 
@@ -262,117 +363,17 @@ def refresh_pad(pad, yx, width):
     y, x = yx
     pad.refresh(0, 0, y, x, y, x+width)
      
-def update_scr(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+def draw_tam_table(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
                task_col_w, time_col_w):
     main_win.erase()
     draw_layout(main_win, len(task_lt), time_lt, task_col_w, time_col_w)
     main_win.refresh()
-    insert_txt_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
+    insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
                               task_col_w, time_col_w)
     curses.doupdate()
-#    draw_left_layout(main_win, len(task_lt), task_col_w)
-#    draw_right_layout(main_win, len(task_lt), time_col_w, task_col_w+2, time_lt)
 
 def update_task_time_file(task_lt, time_lt, task_time_dt):
     old_task_lt = list(task_time_dt); old_time_lt = list(task_time_dt.values())
     for i in range(len(task_lt)):
         task_time_dt[task_lt[i]] = time_lt[i]
     return task_time_dt
-
-def main(main_win):
-    curses.curs_set(False)
-
-    file = open(FILE_PATH)
-
-    task_time_dt = json.loads(file.read())
-
-    task_lt = list(task_time_dt)
-    time_lt = list(task_time_dt.values())
-
-    task_col_w = len(max(task_lt, key=len))
-    time_col_w = len(max(time_lt, key=len))
-
-    task_pad_lt, time_pad_lt = init_task_time_pads(main_win, task_lt, time_lt,
-                                                   task_col_w, time_col_w)
-
-    update_scr(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
-               task_col_w, time_col_w)
-
-    task_pad_lt[0].keypad(True)
-
-    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)
-
-    row = col = -1
-    while True:
-        key = task_pad_lt[0].getch()
-        if (key == curses.KEY_UP or chr(key) == 'k') and row >= 0:
-            row = len(task_lt)-1 if row == 0 else row-1
-        elif (key == curses.KEY_DOWN or chr(key) == 'j') and row >= 0:
-            row = 0 if row == len(task_lt)-1 else row+1
-        elif (key  == curses.KEY_LEFT or chr(key) == 'h') and row >= 0:
-            col = 1 if col == 0 else 0
-        elif (key == curses.KEY_RIGHT or chr(key) == 'l') and row >= 0:
-            col = 0 if col == 1 else 1
-        elif (key == 10) and row >= 0: # enter.
-            selected_pad = get_selected_pad(task_pad_lt, time_pad_lt, row, col)
-            if col == 0:
-                task_lt = modify_task_name(main_win, selected_pad,
-                                           task_pad_lt, time_pad_lt,
-                                           task_lt, time_lt,
-                                           task_col_w, time_col_w,
-                                           row, col)
-
-                task_col_w = len(max(task_lt, key=len))
-                time_col_w = len(max(time_lt, key=len))
-
-                update_scr(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
-                           task_col_w, time_col_w)
-            else:
-                time_lt = modify_time(main_win, time_lt, selected_pad, time_col_w, row)
-                highlight_pad(selected_pad, True)
-
-        elif chr(key) == 'q':
-            break
-        else:
-            if row == -1 and is_key_valid(key):
-                row, col = 0, 0
-                selected_pad = get_selected_pad(task_pad_lt, time_pad_lt, row,
-                                                col)
-                selected_pad_content = pad_content(task_lt, time_lt, row, col,
-                                                   time_col_w)
-
-                highlight_pad(selected_pad)
-                
-                refresh_pad(selected_pad, selected_pad.getbegyx(),
-                            len(selected_pad_content))
-                prev_selected_pad = selected_pad
-                prev_selected_pad_content = selected_pad_content
-            continue
-
-        selected_pad_content = pad_content(task_lt, time_lt, row, col,
-                                           time_col_w)
-        selected_pad = get_selected_pad(task_pad_lt, time_pad_lt, row, col)
-        
-        if selected_pad == prev_selected_pad:
-            highlight_pad(selected_pad)
-            refresh_pad(selected_pad, selected_pad.getbegyx(),
-                        len(selected_pad_content))
-            prev_selected_pad = selected_pad
-            prev_selected_pad_content = selected_pad_content
-            continue
-
-        highlight_pad(prev_selected_pad, True)
-        highlight_pad(selected_pad)
-        
-        refresh_pad(prev_selected_pad, prev_selected_pad.getbegyx(),
-                    len(prev_selected_pad_content))
-        refresh_pad(selected_pad, selected_pad.getbegyx(),
-                    len(selected_pad_content))
-
-        prev_selected_pad = selected_pad
-        prev_selected_pad_content = selected_pad_content
-
-    update_task_time_file(task_lt, time_lt, task_time_dt)
-    
-curses.wrapper(main)
