@@ -53,7 +53,7 @@ def main(main_win):
                 draw_tam_table(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
                            task_col_w, time_col_w)
             else: # time col.
-                time_lt = modify_time(main_win, time_lt, selected_pad, time_col_w, row)
+                time_lt = modify_time_range(main_win, time_lt, selected_pad, time_col_w, row)
                 highlight_pad(selected_pad, True)
 
         elif chr(key) == 'q': # quit.

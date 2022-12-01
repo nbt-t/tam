@@ -65,6 +65,30 @@ def draw_layout(main_win, task_time_pairs_n, time_lt, task_col_w, time_col_w,
         if y < task_time_pairs_n*2: # only draw '|' while y isn't last line
             main_win.addstr(y+1, task_col_w+1, '|')
 
+def init_task_time_pads(main_win, task_lt, time_lt, task_col_w, time_col_w):
+    """
+    Create (initialize) task-time pads.
+
+    Return
+    -------
+    * task_pad_lt
+        List of newly created task pads.
+
+    * time_pad_lt
+        List of newly created time pads.
+    """
+    # +1 pattern for strs on windows/wins/pads.
+    task_pad_lt = []; time_pad_lt = []
+    for i in range(len(task_lt)):
+        task_str = task_lt[i].ljust(task_col_w)
+        time_str = time_lt[i]
+
+        task_pad = curses.newpad(1, len(task_str))
+        time_pad = curses.newpad(1, len(time_str))
+
+        task_pad_lt.append(task_pad); time_pad_lt.append(time_pad)
+    return task_pad_lt, time_pad_lt
+
 def insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
                               task_col_w, time_col_w):
     """Inserts corresponding values in task-time pads."""
@@ -92,29 +116,22 @@ def insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
         time_pad.noutrefresh(0, 0, i*2+1, task_col_w+3, i*2+1,
                              task_col_w+3+time_col_w)
 
-def init_task_time_pads(main_win, task_lt, time_lt, task_col_w, time_col_w):
-    """
-    Create (initialize) task-time pads.
+def draw_tam_table(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+               task_col_w, time_col_w):
+    main_win.erase()
+    draw_layout(main_win, len(task_lt), time_lt, task_col_w, time_col_w)
+    main_win.refresh()
+    insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
+                              task_col_w, time_col_w)
+    curses.doupdate()
 
-    Returns
-    -------
-    * task_pad_lt
-        List of newly created task pads.
+def get_selected_pad(task_pad_lt, time_pad_lt, row, col):
+    return task_pad_lt[row] if col == 0 else time_pad_lt[row]
 
-    * time_pad_lt
-        List of newly created time pads.
-    """
-    # +1 pattern for strs on windows/wins/pads.
-    task_pad_lt = []; time_pad_lt = []
-    for i in range(len(task_lt)):
-        task_str = task_lt[i].ljust(task_col_w)
-        time_str = time_lt[i]
-
-        task_pad = curses.newpad(1, len(task_str))
-        time_pad = curses.newpad(1, len(time_str))
-
-        task_pad_lt.append(task_pad); time_pad_lt.append(time_pad)
-    return task_pad_lt, time_pad_lt
+def refresh_pad(pad, yx, width):
+    y, x = yx
+    pad.refresh(0, 0, y, x, y, x+width)
+     
 
 def highlight_pad(pad, selected=False):
     """
@@ -132,7 +149,7 @@ def highlight_pad(pad, selected=False):
 
 def pad_content(task_lt, time_lt, time_col_w, row, col):
     """
-    Fetches and returns pad's content. From task_lt if col is 0, and time_lt
+    Fetches and Return pad's content. From task_lt if col is 0, and time_lt
     if otherly.
 
     Parameters
@@ -143,7 +160,7 @@ def pad_content(task_lt, time_lt, time_col_w, row, col):
     * col
         Pad's col (x).
 
-    Returns
+    Return
     -------
     * task_lt[row] OR time_lt[row]
         Task name of task_lt at row.
@@ -155,13 +172,13 @@ def pad_content(task_lt, time_lt, time_col_w, row, col):
 
 def is_key_valid(key):
     """
-    Returns True if key is valid.
+    Return True if key is valid.
 
     Parameters
     ----------
     * key.
 
-    Returns
+    Return
     -------
     * Boolean value (True/False).
     """
@@ -171,6 +188,13 @@ def is_key_valid(key):
     if chr(key) in valid_keys_normal or key in valid_keys_special:
         return True
     return False
+
+def update_task_time_file(task_lt, time_lt, task_time_dt):
+    old_task_lt = list(task_time_dt); old_time_lt = list(task_time_dt.values())
+    for i in range(len(task_lt)):
+        task_time_dt[task_lt[i]] = time_lt[i]
+    return task_time_dt
+
 
 def task_usr_inp(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
                  task_col_w, time_col_w, row, col):
@@ -185,7 +209,7 @@ def task_usr_inp(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
     * col
         Pad's col (x)
 
-    Returns
+    Return
     -------
     * inp
     """
@@ -230,6 +254,22 @@ def task_usr_inp(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
         
 def modify_task_name(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
                      task_col_w, time_col_w, row, col):
+    """
+    User input in task pad and replace task name with such input.
+
+    Parameters
+    ----------
+    * row
+        Pad's row (y).
+
+    * col
+        Pad's col (x)
+
+    Return
+    ------
+    * task_lt
+        Modifed list of task names.
+    """
     curses.curs_set(True)
     curses.echo()
     pad.erase()
@@ -239,87 +279,38 @@ def modify_task_name(main_win, pad, task_pad_lt, time_pad_lt, task_lt, time_lt,
                        time_lt, task_col_w, time_col_w, row, col)
     curses.noecho()
     curses.curs_set(False)
-
-    if not inp or inp.isspace():
+ 
+    if not inp or inp.isspace(): # nothing in inp or inp only spaces.
         return task_lt
 
-    task_lt[row] = inp; return task_lt
+    task_lt[row] = inp; return task_lt # replace current task name with inp.
 
-def change_time(time_pad, time_lt, time_col_w, start_time, end_time, selected, hour_min, y):
-    key = None
-    if selected == 1:
+def highlight_timestamp(time_pad, time_lt, time_col_w, start_time, end_time,
+                       selected_time, hour_min):
+    time_pad.erase()
+
+    if selected_time == 1:
         hour, minute = start_time.split(':')
     else:
         hour, minute = end_time.split(':')
 
-    while (key != 10 if key else True):
-        key = time_pad.getch()
-        if chr(key) == 'k' or key == curses.KEY_UP:
-            if hour_min == 1:
-                if int(hour) == 23:
-                    hour = '00'
-                else:
-                    hour = str(int(hour)+1)
-                    hour = '0'+hour if int(hour) < 10 else hour
-            else:
-                if minute == '59':
-                    minute = '00'
-                    hour += str(int(hour)+1) if int(hour) != '23' else '00'
-                else:
-                    minute = str(int(minute)+1)
-                    minute = '0'+minute if int(minute) < 10 else minute
-        elif chr(key) == 'j' or key == curses.KEY_DOWN:
-            if hour_min == 1:
-                if int(hour) == 0:
-                    hour = '23'
-                else:
-                    hour = str(int(hour)-1)
-                    hour = '0'+hour if int(hour) < 10 else hour
-            else:
-                if int(minute) == 0:
-                    minute = '59'
-                    hour += str(int(hour)-1) if hour != '00' else '23'
-                else:
-                    minute = str(int(minute)+1)
-                    minute = '0'+minute if int(minute) < 10 else minute
-        
-        if selected == 1:
-            highlight_time_pad(time_pad, time_lt, time_col_w, hour+':'+minute,
-                               end_time, selected, hour_min)
-        elif selected == 2:
-            highlight_time_pad(time_pad, time_lt, time_col_w, start_time,
-                               hour+':'+minute, selected, hour_min)
-    if selected == 1:
-        time_lt[y] = f'{hour}:{minute}-'+time_lt[y].split('-')[1]
-
-    else:
-        time_lt[y] = time_lt[y].split('-')[0]+f'-{hour}:{minute}'
-
-    return time_lt
-
-def highlight_time_pad(time_pad, time_lt, time_col_w, start_time, end_time,
-                       selected, hour_min):
-    time_pad.erase()
-    hour, minute = start_time.split(':') if selected == 1 else end_time.split(':')
-    if selected == 1: # start time.
-        if hour_min == 1: # hour.
-            time_pad.insstr(end_time, curses.color_pair(2))
-            time_pad.insstr('-', curses.color_pair(2))
+    if selected_time == 1:
+        time_pad.insstr(end_time, curses.color_pair(2))
+        time_pad.insstr('-', curses.color_pair(2))
+        if hour_min == 1:
             time_pad.insstr(f':{minute}', curses.color_pair(2))
             time_pad.insstr(hour, curses.color_pair(1))
-        else: # minuteute.
-            time_pad.insstr(end_time, curses.color_pair(2))
-            time_pad.insstr('-', curses.color_pair(2))
+        else:
             time_pad.insstr(minute, curses.color_pair(1))
             time_pad.insstr(':', curses.color_pair(2))
             time_pad.insstr(hour, curses.color_pair(2))
-    else: # end time.
-        if hour_min == 1: # hour.
+    else: 
+        if hour_min == 1:
             time_pad.insstr(f':{minute}', curses.color_pair(2))
             time_pad.insstr(hour, curses.color_pair(1))
             time_pad.insstr('-', curses.color_pair(2))
             time_pad.insstr(start_time, curses.color_pair(2))
-        else: # minute.
+        else:
             time_pad.insstr(minute, curses.color_pair(1))
             time_pad.insstr(':', curses.color_pair(2))
             time_pad.insstr(hour, curses.color_pair(2))
@@ -327,12 +318,82 @@ def highlight_time_pad(time_pad, time_lt, time_col_w, start_time, end_time,
             time_pad.insstr(start_time, curses.color_pair(2))
 
     refresh_pad(time_pad, time_pad.getbegyx(), len(start_time)+len(end_time))
+    
+def time_pad_inp(time_pad, time_lt, time_col_w, row, start_time, end_time,
+                 selected_time, hour_min):
+    """
+    Perform user input operations in timestamps of time pad: increment or
+    decrement time.
 
-def modify_time(main_win, time_lt, time_pad, time_col_w,  y):
-    time_range = time_lt[y]
+    Parameters
+    ----------
+    * start_time
+
+    * end_time
+
+    * selected_time
+        start_time (1) or end_time (2)
+
+    * hour_min
+        hour (1) or minute (2)
+
+    Return
+    ------
+    * time_lt
+        Modified time range list.
+    """
+    key = None
+    if selected_time == 1:
+        hour, minute = start_time.split(':')
+    else:
+        hour, minute = end_time.split(':') 
+    
+    # mod operator pattern?
+    while (key != 10 if key else True):
+        key = time_pad.getch()
+        if chr(key) == 'k' or key == curses.KEY_UP: # increment time.
+            if hour_min == 1:
+                hour = str((int(hour)+1) % 24)
+            else:
+                minute = str((int(minute)+1) % 60)
+        elif chr(key) == 'j' or key == curses.KEY_DOWN: # decrement time.
+            if hour_min == 1:
+                hour = str((int(hour)+1) % 24)
+            else:
+                minute = str((int(minute)+1) % 60)
+        elif hour_min == 2:
+            if chr(key) == 'K':
+                minute = str((int(minute)+10) % 60)
+            elif chr(key) == 'J':
+                minute = str((int(minute)-10) % 60)
+
+        # prepend zero for uniformity in length; to not have to deal with
+        # string justification in table.
+        hour = '0'+hour if len(hour) == 1 else hour
+        minute = '0'+minute if len(minute) == 1 else minute
+        
+        if selected_time == 1:
+            highlight_timestamp(time_pad, time_lt, time_col_w, hour+':'+minute,
+                               end_time, selected_time, hour_min)
+        elif selected_time == 2:
+            highlight_timestamp(time_pad, time_lt, time_col_w, start_time,
+                               hour+':'+minute, selected_time, hour_min)
+
+    if selected_time == 1:
+        # modified start time plus end time.
+        time_lt[row] = f'{hour}:{minute}-'+time_lt[row].split('-')[1]
+
+    else:
+        # start time plus modified end time.
+        time_lt[row] = time_lt[row].split('-')[0]+f'-{hour}:{minute}'
+
+    return time_lt
+
+def modify_time_range(main_win, time_lt, time_pad, time_col_w, row):
+    time_range = time_lt[row]
     start_time, end_time = time_range.split('-')
 
-    highlight_time_pad(time_pad, time_lt, time_col_w, start_time, end_time, 1, 1)
+    highlight_timestamp(time_pad, time_lt, time_col_w, start_time, end_time, 1, 1)
     key = None
     col = 1
     time_pad.keypad(True)
@@ -343,37 +404,17 @@ def modify_time(main_win, time_lt, time_pad, time_col_w,  y):
         elif chr(key) == 'l' or key == curses.KEY_RIGHT:
             col += 1 if col < 4 else -3
 
-        highlight_time_pad(time_pad, time_lt, time_col_w,
-                           start_time, end_time,
-                           1 if col < 3 else 2, 1 if col % 2 else 2)
+        selected = 1 if col < 3 else 2
+        hour_min = 1 if col % 2 else 2
+
+        highlight_timestamp(time_pad, time_lt, time_col_w, start_time,
+                            end_time, selected, hour_min)
         if key == 10:
-            time_lt = change_time(time_pad, time_lt, time_col_w, start_time,
-                                  end_time, 1 if col < 3 else 2, 1 if col % 2 else 2, y)
-            time_range = time_lt[y]
-            start_time, end_time = start_end.split('-')
-            highlight_time_pad(time_pad, time_lt, time_col_w, start_time,
-                               end_time, 1 if col < 3 else 2, 1 if col % 2 else 2)
+            time_lt = time_pad_inp(time_pad, time_lt, time_col_w, row, start_time,
+                                  end_time, selected, hour_min)
+            time_range = time_lt[row]
+            start_time, end_time = time_range.split('-')
+            highlight_timestamp(time_pad, time_lt, time_col_w, start_time,
+                               end_time, selected, hour_min)
 
     return time_lt
-    
-def get_selected_pad(task_pad_lt, time_pad_lt, row, col):
-    return task_pad_lt[row] if col == 0 else time_pad_lt[row]
-
-def refresh_pad(pad, yx, width):
-    y, x = yx
-    pad.refresh(0, 0, y, x, y, x+width)
-     
-def draw_tam_table(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
-               task_col_w, time_col_w):
-    main_win.erase()
-    draw_layout(main_win, len(task_lt), time_lt, task_col_w, time_col_w)
-    main_win.refresh()
-    insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
-                              task_col_w, time_col_w)
-    curses.doupdate()
-
-def update_task_time_file(task_lt, time_lt, task_time_dt):
-    old_task_lt = list(task_time_dt); old_time_lt = list(task_time_dt.values())
-    for i in range(len(task_lt)):
-        task_time_dt[task_lt[i]] = time_lt[i]
-    return task_time_dt
