@@ -318,7 +318,10 @@ def highlight_timestamp(time_pad, time_lt, time_col_w, start_time, end_time,
             time_pad.insstr(start_time, curses.color_pair(2))
 
     refresh_pad(time_pad, time_pad.getbegyx(), len(start_time)+len(end_time))
-    
+
+def int_to_time(n, hour_min):
+    return n % (24 if hour_min == 1 else 60)
+
 def time_pad_inp(time_pad, time_lt, time_col_w, row, start_time, end_time,
                  selected_time, hour_min):
     """
@@ -347,45 +350,48 @@ def time_pad_inp(time_pad, time_lt, time_col_w, row, start_time, end_time,
         hour, minute = start_time.split(':')
     else:
         hour, minute = end_time.split(':') 
+
+    hour, minute = int(hour), int(minute)
     
     # mod operator pattern?
     while (key != 10 if key else True):
         key = time_pad.getch()
         if chr(key) == 'k' or key == curses.KEY_UP: # increment time.
             if hour_min == 1:
-                hour = str((int(hour)+1) % 24)
+                hour = int_to_time(hour+1, 1)
             else:
-                minute = str((int(minute)+1) % 60)
+                minute = int_to_time(minute+1, 2)
         elif chr(key) == 'j' or key == curses.KEY_DOWN: # decrement time.
             if hour_min == 1:
-                hour = str((int(hour)+1) % 24)
+                hour = int_to_time(hour+1, 1)
             else:
-                minute = str((int(minute)+1) % 60)
+                minute = int_to_time(minute+1, 2)
         elif hour_min == 2:
             if chr(key) == 'K':
-                minute = str((int(minute)+10) % 60)
+                minute = int_to_time(minute+10, 2)
             elif chr(key) == 'J':
-                minute = str((int(minute)-10) % 60)
+                minute = int_to_time(minute-10, 2)
 
         # prepend zero for uniformity in length; to not have to deal with
         # string justification in table.
-        hour = '0'+hour if len(hour) == 1 else hour
-        minute = '0'+minute if len(minute) == 1 else minute
+        hour_str = '0'+str(hour) if len(str(hour)) == 1 else str(hour)
+        minute_str = '0'+str(minute) if len(str(minute)) == 1 else str(minute)
         
         if selected_time == 1:
-            highlight_timestamp(time_pad, time_lt, time_col_w, hour+':'+minute,
-                               end_time, selected_time, hour_min)
+            highlight_timestamp(time_pad, time_lt, time_col_w,
+                                hour_str+':'+minute_str, end_time,
+                                selected_time, hour_min)
         elif selected_time == 2:
             highlight_timestamp(time_pad, time_lt, time_col_w, start_time,
-                               hour+':'+minute, selected_time, hour_min)
+                               hour_str+':'+minute_str, selected_time, hour_min)
 
     if selected_time == 1:
         # modified start time plus end time.
-        time_lt[row] = f'{hour}:{minute}-'+time_lt[row].split('-')[1]
+        time_lt[row] = f'{hour_str}:{minute_str}-'+time_lt[row].split('-')[1]
 
     else:
         # start time plus modified end time.
-        time_lt[row] = time_lt[row].split('-')[0]+f'-{hour}:{minute}'
+        time_lt[row] = time_lt[row].split('-')[0]+f'-{hour_str}:{minute_str}'
 
     return time_lt
 
@@ -418,3 +424,76 @@ def modify_time_range(main_win, time_lt, time_pad, time_col_w, row):
                                end_time, selected, hour_min)
 
     return time_lt
+
+def new_task_time_pair_lt(task_pad_lt, time_pad_lt, task_lt, time_lt,
+                             task_col_w, time_col_w, row):
+    task_pad_lt.insert(row, curses.newpad(1, task_col_w))
+    time_pad_lt.insert(row, curses.newpad(1, time_col_w))
+
+    task_lt.insert(row, ''); time_lt.insert(row, '')
+
+    return task_pad_lt, time_pad_lt, task_lt, time_lt
+
+def shift_hour(time_lt, row, left_right):
+    if left_right == 1:
+        for i in range(row, len(time_lt)):
+            start_time, end_time = time_lt[i].split('-')
+
+            start_time_h, start_time_m = start_time.split(':')
+            end_time_h, end_time_m = end_time.split(':')
+
+            start_time_h = int_to_time(int(start_time_h)+1, 1)
+            end_time_h = int_to_time(int(end_time_h)+1, 1)
+
+            time_lt[i] = f'{start_time_h}:{start_time_m}-{end_time_h}:{end_time_m}'
+    else:
+        # FIXME
+        for i in range(1 if row == 0 else row):
+            start_time, end_time = time_lt[i].split('-')
+
+            start_time_h, start_time_m = start_time.split(':')
+            end_time_h, end_time_m = end_time.split(':')
+
+            start_time_h = int_to_time(int(start_time_h)-1, 1)
+            end_time_h = int_to_time(int(end_time_h)-1, 1)
+
+            time_lt[i] = f'{start_time_h}:{start_time_m}-{end_time_h}:{end_time_m}'
+
+    return time_lt
+
+def add_time_range(time_pad, time_lt, row, up_down):
+    key = time_pad.getkey()
+
+    if key == 'y' and row < len(time_lt)-1 and row > 0:
+        time_range = time_lt[row+up_down]
+        time_lt = shift_hour(time_lt, row+up_down, up_down)
+    else:
+        time_range = '00:00-00:00'
+
+    time_lt[row] = time_range; return time_lt
+
+def add_task_time_pair(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+                       task_col_w, time_col_w, row, col, up_down):
+
+    task_pad_lt, time_pad_lt, task_lt, time_lt = new_task_time_pair_lt(
+            task_pad_lt, time_pad_lt, task_lt, time_lt, task_col_w, time_col_w,
+            row
+            )
+    draw_tam_table(main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+                   task_col_w, time_col_w)
+    selected_pad = get_selected_pad(task_pad_lt, time_pad_lt, row-up_down, col)
+    selected_pad_content = pad_content(task_lt, time_lt, time_col_w, row-up_down,
+                                       col)
+    highlight_pad(selected_pad, True)
+    refresh_pad(selected_pad, selected_pad.getbegyx(),
+                task_col_w)
+
+    task_lt = modify_task_name(main_win, task_pad_lt[row], task_pad_lt,
+                               time_pad_lt, task_lt, time_lt, task_col_w,
+                               time_col_w, row, col)
+    time_lt = add_time_range(time_pad_lt[row], time_lt, row, up_down)
+
+    insert_val_task_time_pads(task_lt, time_lt, task_pad_lt, time_pad_lt,
+                              task_col_w, time_col_w)
+    
+    return task_pad_lt, time_pad_lt, task_lt, time_lt 

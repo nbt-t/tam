@@ -58,6 +58,15 @@ def main(main_win):
 
         elif chr(key) == 'q': # quit.
             break
+        elif chr(key) == 'p' and row >= 0:
+            task_pad_lt, time_pad_lt, task_lt, time_lt = add_task_time_pair(
+                    main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+                    task_col_w, time_col_w, row+1, col, 1)
+            row += 1
+        elif chr(key) == 'P' and row >= 0:
+            task_pad_lt, time_pad_lt, task_lt, time_lt = add_task_time_pair(
+                    main_win, task_pad_lt, time_pad_lt, task_lt, time_lt,
+                    task_col_w, time_col_w, row, col, -1)
         else: # first ever selected since executing program.
             if row == -1 and is_key_valid(key):
                 row = col = 0
